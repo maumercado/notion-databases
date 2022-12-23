@@ -4,6 +4,8 @@ import axios from 'axios'
 import dotenv from 'dotenv';
 import QuickChart from 'quickchart-js'
 
+const CATEGORIES = ['Category 1', 'Category 2', 'Category 3', 'Category 4']
+
 dotenv.config();
 
 const clientId = process.env.IMGUR_CLIENT_ID;
@@ -74,7 +76,7 @@ const data = databases.map((dbWithResults, idx) => {
     return null
   }
 
-  return { dbTitle: dbWithResults.dbInfo.title.at(0).plain_text, rs: RComparison, cats: catResultsInPercent, winRate: `${((winRate / queryResults.length) * 100)}%` }
+  return { dbTitle: dbWithResults.dbInfo.title.at(0).plain_text, rs: RComparison, pureCats: catResults, cats: catResultsInPercent, winRate: `${((winRate / queryResults.length) * 100)}%` }
 })
 
 function generatePieChart(data) {
@@ -88,6 +90,35 @@ function generatePieChart(data) {
         text: '% Category of trades taken'
       }
     }
+  })
+    .setWidth(800)
+    .setHeight(800)
+    .setBackgroundColor('transparent');
+
+  return myChart.getUrl();
+}
+
+function generateBarChart(data, title) {
+  const myChart = new QuickChart()
+  myChart.setConfig({
+    type: 'bar',
+    data,
+    options: {
+      plugins: {
+        datalabels: {
+          anchor: 'center',
+          align: 'center',
+          color: '#000',
+          font: {
+            weight: 'bold',
+          },
+        },
+      },
+      title: {
+        display: true,
+        text: title
+      }
+    },
   })
     .setWidth(800)
     .setHeight(800)
@@ -124,7 +155,47 @@ const cleanSets = data.filter((x) => x !== null)
 
 const ObjToAnalyze = cleanSets.reduce(assignBy('dbTitle'), {})
 
-console.log(ObjToAnalyze)
+function dataForBarChartResultsComparison(bigObj) {
+  const bigLabels = Object.keys(bigObj).sort()
+  const datasets = [{ label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }]
+
+  CATEGORIES.forEach((cat, idx) => {
+    datasets[idx].label = cat
+    bigLabels.forEach((setResLabel, idy) => {
+      datasets[idx].data.push(bigObj[setResLabel].pureCats[cat])
+    })
+  })
+
+  return { labels: bigLabels, datasets }
+}
+
+function dataTradesPerSetBarChart(bigObj) {
+  const bigLabels = Object.keys(bigObj).sort()
+  const datasets = []
+
+  bigLabels.forEach((tradeSet, idx) => {
+    datasets.push(bigObj[tradeSet].rs.length)
+  })
+
+  return {
+    labels: bigLabels, datasets: [{
+      label: 'Trades per dataset', data: datasets
+    }]
+  }
+}
+
+console.log(
+  generateBarChart(
+    dataTradesPerSetBarChart(ObjToAnalyze),
+    'Trades per dataset'
+  )
+)
+
+// console.log(
+//   await swapLinks(
+//     generateBarChart(dataForBarChartResultsComparison(ObjToAnalyze), 'Comparison Trade Category per Set')
+//   )
+// )
 
 // console.log(
 //   await swapLinks(

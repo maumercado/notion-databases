@@ -66,9 +66,10 @@ const data = databases.map((dbWithResults, idx) => {
 
     if ((properties.Status.select.name === "Win" || properties.Status.select.name === "B/E") && properties['Total Rs'].number >= 1 && properties.Score.number >= 7) {
       let bestTrade = {
-        name: properties['Trade Page'].rich_text.at(0).plain_text,
+        entryTime: properties['Entry Time'].date.start,
         link: properties['Trade Page'].rich_text.at(0).href,
-        entryTime: properties['Entry Time'].date.start
+        name: properties['Trade Page'].rich_text.at(0).plain_text,
+        strategy: properties['Strategy'].select.name
       }
       bestTrades.push(bestTrade)
     }
@@ -254,7 +255,7 @@ function generatePieChartsOfTradeCatPerSetForAll(bigObj) {
 //   )
 // )
 
-// // Getting pie charts of cats per trade set
+// // // Getting pie charts of cats per trade set
 // const pieChartsForSets = generatePieChartsOfTradeCatPerSetForAll(ObjToAnalyze)
 // const pieChartsOfCatsPerSet = Object.keys(pieChartsForSets).map((tradeSet) => generatePieChart(pieChartsForSets[tradeSet], tradeSet.toString()))
 // console.log(await Promise.all(pieChartsOfCatsPerSet.map((link) => swapLinks(link))))
@@ -262,8 +263,8 @@ function generatePieChartsOfTradeCatPerSetForAll(bigObj) {
 
 // show best trades per set
 
-Object.keys(ObjToAnalyze).forEach((tradeSet) => {
-  console.table(ObjToAnalyze[tradeSet].bestTrades)
-
+Object.keys(ObjToAnalyze).sort().forEach((tradeSet) => {
+  console.log(`\n${tradeSet}\n`)
+  console.table(ObjToAnalyze[tradeSet].bestTrades, ['name', 'link', 'entryTime', 'strategy'])
   console.log('\n\n')
 })

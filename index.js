@@ -16,24 +16,27 @@ const { results: databaseObjs } = await notion.search({
   filter: {
     value: 'database',
     property: 'object',
-  },
+  }
 });
+
+const filteredDbs = databaseObjs.filter((db) =>
+  /Set \d Results/.test(db.title.at(0).plain_text)
+)
 
 async function queryDatabase(db) {
   const queryResult = await notion.databases.query({
     database_id: db.id,
-    "sorts": [
+    sorts: [
       {
-        "property": "Category",
-        "direction": "ascending"
+        property: "Entry Time",
+        direction: "ascending"
       }
     ]
   })
   return { result: queryResult, dbInfo: db }
 }
 
-
-const databasesPromises = databaseObjs.map(queryDatabase)
+const databasesPromises = filteredDbs.map(queryDatabase)
 
 const databases = await Promise.all(databasesPromises)
 
@@ -44,10 +47,14 @@ const data = databases.map((dbWithResults, idx) => {
   let catResults = {}
   let catResultsInPercent = {}
   let RComparison = []
-  let bestTrades = []
+  const bestTrades = []
+  const worstTrades = []
   let winRate = 0
 
   queryResults.forEach(({ properties }) => {
+    // in case of empty row
+    if (!properties.Date.date) return;
+
     if (properties.Status.select.name === "Win" || properties.Status.select.name === "B/E") winRate += 1;
 
     if (properties.Category.select) {
@@ -74,6 +81,15 @@ const data = databases.map((dbWithResults, idx) => {
       bestTrades.push(bestTrade)
     }
 
+    if (properties.Status.select.name === "Loss" && properties.Score.number <= 5) {
+      let worstTrade = {
+        entryTime: properties['Entry Time'].date ? properties['Entry Time'].date.start : null,
+        link: properties['Trade Page'].rich_text.at(0).href,
+        name: properties['Trade Page'].rich_text.at(0).plain_text,
+        strategy: properties['Strategy'].select.name
+      }
+      worstTrades.push(worstTrade)
+    }
   })
 
   Object.keys(catResults).forEach((cat) => {
@@ -94,7 +110,8 @@ const data = databases.map((dbWithResults, idx) => {
     cats: catResultsInPercent,
     pureCats: catResults,
     rs: RComparison,
-    winRate: ((winRate / queryResults.length) * 100).toFixed(2)
+    winRate: ((winRate / queryResults.length) * 100).toFixed(2),
+    worstTrades
   }
 })
 
@@ -167,7 +184,6 @@ async function swapLinks(chartlink) {
       return data.data.link;
     });
 
-  // console.log(imgurLink);
   return imgurLink;
 }
 
@@ -175,96 +191,141 @@ const cleanSets = data.filter((x) => x !== null)
 
 const ObjToAnalyze = cleanSets.reduce(assignBy('dbTitle'), {})
 
-function dataForBarChartResultsComparison(bigObj) {
-  const bigLabels = Object.keys(bigObj).sort()
-  const datasets = [{ label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }]
 
-  CATEGORIES.forEach((cat, idx) => {
-    datasets[idx].label = cat
-    bigLabels.forEach((setResLabel, idy) => {
-      datasets[idx].data.push(bigObj[setResLabel].pureCats[cat])
-    })
-  })
+// function dataForBarChartResultsComparison(bigObj) {
+//   const bigLabels = Object.keys(bigObj).sort()
+//   const datasets = [{ label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }, { label: '', data: [] }]
 
-  return { labels: bigLabels, datasets }
-}
+//   CATEGORIES.forEach((cat, idx) => {
+//     datasets[idx].label = cat
+//     bigLabels.forEach((setResLabel, idy) => {
+//       datasets[idx].data.push(bigObj[setResLabel].pureCats[cat])
+//     })
+//   })
 
-function dataTradesPerSetBarChart(bigObj) {
-  const bigLabels = Object.keys(bigObj).sort()
-  const labels = bigLabels.map(l => l.replace('Results', ''))
-  const datasets = []
+//   return { labels: bigLabels, datasets }
+// }
 
-  bigLabels.forEach((tradeSet, idx) => {
-    datasets.push(bigObj[tradeSet].rs.length)
-  })
+// function dataTradesPerSetBarChart(bigObj) {
+//   const bigLabels = Object.keys(bigObj).sort()
+//   const labels = bigLabels.map(l => l.replace('Results', ''))
+//   const datasets = []
 
-  return {
-    labels, datasets: [{
-      label: 'Trades per dataset', data: datasets
-    }]
-  }
-}
+//   bigLabels.forEach((tradeSet, idx) => {
+//     datasets.push(bigObj[tradeSet].rs.length)
+//   })
 
-function dataWinRatePerSetBarChart(bigObj) {
-  const bigLabels = Object.keys(bigObj).sort()
-  const labels = bigLabels.map(l => l.replace('Results', ''))
-  const datasets = []
+//   return {
+//     labels, datasets: [{
+//       label: 'Trades per dataset', data: datasets
+//     }]
+//   }
+// }
 
-  bigLabels.forEach((tradeSet, idx) => {
-    datasets.push(bigObj[tradeSet].winRate)
-  })
+// function dataWinRatePerSetBarChart(bigObj) {
+//   const bigLabels = Object.keys(bigObj).sort()
+//   const labels = bigLabels.map(l => l.replace('Results', ''))
+//   const datasets = []
 
-  return {
-    labels, datasets: [{
-      label: 'Win rate per set in %', data: datasets
-    }]
-  }
-}
+//   bigLabels.forEach((tradeSet, idx) => {
+//     datasets.push(bigObj[tradeSet].winRate)
+//   })
 
-function dataPieChartTradeCategoryInSet(catsInPercent) {
-  return { labels: Object.keys(catsInPercent), datasets: [{ data: Object.values(catsInPercent) }] }
-}
+//   return {
+//     labels, datasets: [{
+//       label: 'Win rate per set in %', data: datasets
+//     }]
+//   }
+// }
 
-function generatePieChartsOfTradeCatPerSetForAll(bigObj) {
-  return Object.keys(bigObj).reduce((accum, currentVal) => {
-    return { ...accum, [currentVal]: dataPieChartTradeCategoryInSet(bigObj[currentVal].cats) }
-  }, {})
-}
+// function dataEfficiencyPerSetBarChart(bigObj) {
+//   const bigLabels = Object.keys(bigObj).sort()
+//   const labels = bigLabels.map(l => l.replace('Results', ''))
+//   const datasets = []
 
-// console.log(
-//   await swapLinks(
-//     generateBarChart(
-//       dataWinRatePerSetBarChart(ObjToAnalyze),
-//       'Win Rate per Set in %'
-//     )
+//   bigLabels.forEach((tradeSet, idx) => {
+//     datasets.push(((bigObj[tradeSet].pureCats["Category 1"] / bigObj[tradeSet].rs.length) * 100).toFixed(2))
+//   })
+
+//   return {
+//     labels, datasets: [{
+//       label: 'Efficiency Per Set in %', data: datasets
+//     }]
+//   }
+// }
+
+// function dataPieChartTradeCategoryInSet(catsInPercent) {
+//   return { labels: Object.keys(catsInPercent), datasets: [{ data: Object.values(catsInPercent) }] }
+// }
+
+// function generatePieChartsOfTradeCatPerSetForAll(bigObj) {
+//   return Object.keys(bigObj).reduce((accum, currentVal) => {
+//     return { ...accum, [currentVal]: dataPieChartTradeCategoryInSet(bigObj[currentVal].cats) }
+//   }, {})
+// }
+
+
+// const winRatePerSetLink = await swapLinks(
+//   generateBarChart(
+//     dataWinRatePerSetBarChart(ObjToAnalyze),
+//     'Win Rate per Set in %'
 //   )
 // )
+// console.log('Win rate per set link', winRatePerSetLink)
 
-// console.log(
-//   await swapLinks(
-//     generateBarChart(
-//       dataTradesPerSetBarChart(ObjToAnalyze),
-//       'Trades per dataset'
-//     )
+// const numberOfTradesPerDatasetLinks = await swapLinks(
+//   generateBarChart(
+//     dataTradesPerSetBarChart(ObjToAnalyze),
+//     'Trades per dataset'
 //   )
 // )
+// console.log('Number of trades per set link', numberOfTradesPerDatasetLinks)
 
-// console.log(
-//   await swapLinks(
-//     generateBarChart(dataForBarChartResultsComparison(ObjToAnalyze), 'Comparison Trade Category per Set')
+// const setEfficientyLinks = await swapLinks(
+//   generateBarChart(
+//     dataEfficiencyPerSetBarChart(ObjToAnalyze), 'Efficiency Rate per Set in %'
 //   )
 // )
+// console.log('Efficiency per set', setEfficientyLinks)
 
-// // // Getting pie charts of cats per trade set
+// const comparisonTradeCatPerSet = await swapLinks(
+//   generateBarChart(dataForBarChartResultsComparison(ObjToAnalyze), 'Comparison Trade Category per Set')
+// )
+// console.log('Comparison of Trade Cat per set', comparisonTradeCatPerSet)
+
+// // Getting pie charts of cats per trade set
 // const pieChartsForSets = generatePieChartsOfTradeCatPerSetForAll(ObjToAnalyze)
 // const pieChartsOfCatsPerSet = Object.keys(pieChartsForSets).map((tradeSet) => generatePieChart(pieChartsForSets[tradeSet], tradeSet.toString()))
-// console.log(await Promise.all(pieChartsOfCatsPerSet.map((link) => swapLinks(link))))
 
+// const pieChartsOfCatsPerSetLinks = await Promise.all(pieChartsOfCatsPerSet.map((link) => swapLinks(link)))
 
-// show best trades per set
+// console.log('Pie Charts of categories per set', pieChartsOfCatsPerSetLinks)
 
-Object.keys(ObjToAnalyze).sort().forEach((tradeSet) => {
-  console.log(`\n${tradeSet}\n`)
-  console.table(ObjToAnalyze[tradeSet].bestTrades, ['name', 'link', 'entryTime', 'strategy'])
-  console.log('\n\n')
-})
+// // show best trades per set
+
+// Object.keys(ObjToAnalyze).sort().forEach((tradeSet) => {
+//   console.log(`\n${tradeSet}\n`)
+//   console.table(ObjToAnalyze[tradeSet].bestTrades, ['name', 'link', 'entryTime', 'strategy'])
+//   console.log('\n\n')
+// })
+
+// list of all best trades.
+
+function listAllBestTrades(bigObj) {
+  const sets = Object.keys(bigObj).sort()
+  return sets.reduce(
+    (accum, cV) =>
+      accum.concat(bigObj[cV].bestTrades)
+    , [])
+}
+
+console.log('#### Best Trades ####')
+console.table(listAllBestTrades(ObjToAnalyze), ['name', 'link', 'entryTime', 'strategy'])
+// // show worst trades per set
+
+// Object.keys(ObjToAnalyze).sort().forEach((tradeSet) => {
+//   console.log(`\n${tradeSet}\n`)
+//   console.table(ObjToAnalyze[tradeSet].worstTrades, ['name', 'link', 'entryTime', 'strategy'])
+//   console.log('\n\n')
+// })
+

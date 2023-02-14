@@ -71,12 +71,12 @@ const data = databases.map((dbWithResults, idx) => {
     }
 
 
-    if ((properties.Status.select.name === "Win" || properties.Status.select.name === "B/E") && properties['Total Rs'].number >= 1 && properties.Score.number >= 7) {
+    if ((properties.Status.select.name === "Win" || properties.Status.select.name === "B/E") && properties.Score.number >= 7) {
       let bestTrade = {
-        entryTime: properties['Entry Time'].date.start,
+        entryTime: properties['Entry Time'].date ? properties['Entry Time'].date.start : null,
         link: properties['Trade Page'].rich_text.at(0).href,
         name: properties['Trade Page'].rich_text.at(0).plain_text,
-        strategy: properties['Strategy'].select.name
+        strategy: properties['Strategy'].select ? properties['Strategy'].select.name : ''
       }
       bestTrades.push(bestTrade)
     }
@@ -86,7 +86,7 @@ const data = databases.map((dbWithResults, idx) => {
         entryTime: properties['Entry Time'].date ? properties['Entry Time'].date.start : null,
         link: properties['Trade Page'].rich_text.at(0).href,
         name: properties['Trade Page'].rich_text.at(0).plain_text,
-        strategy: properties['Strategy'].select.name
+        strategy: properties['Strategy'].select ? properties['Strategy'].select.name : ''
       }
       worstTrades.push(worstTrade)
     }
